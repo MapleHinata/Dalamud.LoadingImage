@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Linq;
-using System.Runtime.InteropServices;
-using Dalamud.Data;
 using Dalamud.Game;
-using Dalamud.Game.Gui;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Hooking;
-using Dalamud.IoC;
-using Dalamud.Logging;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -18,14 +15,11 @@ namespace Dalamud.LoadingImage
     // ReSharper disable once UnusedType.Global
     public unsafe class LoadingImagePlugin : IDalamudPlugin
     {
-        private DalamudPluginInterface _pi;
+        private IDalamudPluginInterface _pi;
         private IFramework _framework;
         private IGameGui _gameGui;
         private IPluginLog _pluginLog;
-
-        private delegate int PrintIconPathDelegate(IntPtr pathPtr, int iconId, int hq, int lang);
-
-        private Hook<PrintIconPathDelegate> printIconHook;
+        private readonly IAddonLifecycle _addonLifecycle;
 
         private delegate byte HandleTerriChangeDelegate(IntPtr a1, uint a2, byte a3, byte a4, IntPtr a5);
 
@@ -45,32 +39,31 @@ namespace Dalamud.LoadingImage
         private float Y = -220f;
 
         public LoadingImagePlugin(
-            [RequiredVersion("1.0")] DalamudPluginInterface pluginInterface,
-            [RequiredVersion("1.0")] IDataManager dataManager,
-            [RequiredVersion("1.0")] IGameGui gameGui,
-            [RequiredVersion("1.0")] ISigScanner sigScanner,
-            [RequiredVersion("1.0")] IFramework framework,
-            [RequiredVersion("1.0")] IGameInteropProvider gameInteropProvider,
-            [RequiredVersion("1.0")] IPluginLog pluginLog)
+            IDalamudPluginInterface pluginInterface,
+            IDataManager dataManager,
+            IGameGui gameGui,
+            ISigScanner sigScanner,
+            IFramework framework,
+            IGameInteropProvider gameInteropProvider,
+            IPluginLog pluginLog,
+            IAddonLifecycle addonLifecycle)
         {
             _pi = pluginInterface;
             _gameGui = gameGui;
             _framework = framework;
             _pluginLog = pluginLog;
+            _addonLifecycle = addonLifecycle;
+
+            this._addonLifecycle.RegisterListener(AddonEvent.PreDraw, "_LocationTitle", this.LocationTitleOnDraw);
 
             this.terris = dataManager.GetExcelSheet<TerritoryType>().ToArray();
             this.loadings = dataManager.GetExcelSheet<LoadingImage>().ToArray();
             this.cfcs = dataManager.GetExcelSheet<ContentFinderCondition>().ToArray();
 
-            this.printIconHook = gameInteropProvider.HookFromAddress<PrintIconPathDelegate>(
-                sigScanner.ScanText("40 53 48 83 EC 40 41 83 F8 01"),
-                this.PrintIconPathDetour);
-
             this.handleTerriChangeHook = gameInteropProvider.HookFromAddress<HandleTerriChangeDelegate>(
-                sigScanner.ScanText("40 53 55 57 41 56 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 84 24 ?? ?? ?? ?? 4C 8B F1 41 0F B6 F9"),
+                sigScanner.ScanText("40 55 53 56 57 41 56 48 8D 6C 24 ?? 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 1F 4C 8B F1"),
                 this.HandleTerriChangeDetour);
 
-            this.printIconHook.Enable();
             this.handleTerriChangeHook.Enable();
 
             #if DEBUG
@@ -78,6 +71,76 @@ namespace Dalamud.LoadingImage
             #endif
 
             framework.Update += FrameworkOnOnUpdateEvent;
+        }
+
+        private void LocationTitleOnDraw(AddonEvent type, AddonArgs args)
+        {
+            var addon = (AtkUnitBase*)args.Addon;
+            var regionImageNode = (AtkImageNode*)addon->GetNodeById(3);
+
+            try
+            {
+                var terriZone = this.terris.FirstOrDefault(x => x.RowId == this.toLoadingTerri);
+
+                if (this.cfcs.Any(x => x.ContentLinkType == 1 && x.TerritoryType.Row == this.toLoadingTerri))
+                {
+                    this._pluginLog.Information("Is InstanceContent zone!");
+                    this.hasLoading = false;
+                    return;
+                }
+
+                if (terriZone == null)
+                {
+                    this._pluginLog.Information($"terriZone null!");
+                    this.hasLoading = false;
+                    return;
+                }
+
+                var loadingImage = this.loadings.FirstOrDefault(x => x.RowId == terriZone.LoadingImage);
+
+                if (loadingImage == null)
+                {
+                    this._pluginLog.Information($"LoadingImage null!");
+                    this.hasLoading = false;
+                    return;
+                }
+
+                if (regionImageNode == null)
+                {
+                    this._pluginLog.Information("regionImageNode null!");
+                    return;
+                }
+
+                var asset = regionImageNode->PartsList->Parts[regionImageNode->PartId].UldAsset;
+                if (regionImageNode->Type == NodeType.Image && asset != null)
+                {
+                    var resource = asset->AtkTexture.Resource;
+                    if (resource == null)
+                    {
+                        return;
+                    }
+
+                    var name = resource->TexFileResourceHandle->ResourceHandle.FileName;
+                    if (name.BufferPtr == null)
+                    {
+                        return;
+                    }
+
+                    var texName = name.ToString();
+
+                    if (!texName.Contains("loadingimage"))
+                    {
+                        regionImageNode->LoadTexture($"ui/loadingimage/{loadingImage.Name}_hr1.tex");
+                        this._pluginLog.Information($"Replacing icon for territory {terriZone.RowId}");
+                    }
+                }
+
+                this.hasLoading = true;
+            }
+            catch (Exception e)
+            {
+                this._pluginLog.Error(e, "Could not replace loading image.");
+            }
         }
 
         private void UiBuilderOnOnBuildUi()
@@ -162,78 +225,6 @@ namespace Dalamud.LoadingImage
 
         private int toLoadingTerri = -1;
 
-        private int PrintIconPathDetour(IntPtr pathPtr, int iconId, int hq, int lang)
-        {
-            var r = this.printIconHook.Original(pathPtr, iconId, hq, lang);
-
-            var terriRegion = this.terris.FirstOrDefault(x => x.PlaceNameRegionIcon == iconId);
-
-            if (terriRegion != null)
-            {
-                this._pluginLog.Information($"LoadIcon: {iconId} detected for r:{terriRegion.RowId} with toLoadingTerri:{this.toLoadingTerri}");
-
-                try
-                {
-                    if (this.toLoadingTerri == -1)
-                    {
-                        this._pluginLog.Information($"toLoadingImage not set!");
-                        this.hasLoading = false;
-                        return r;
-                    }
-
-                    if (this.cfcs.Any(x => x.ContentLinkType == 1 && x.TerritoryType.Row == this.toLoadingTerri))
-                    {
-                        this._pluginLog.Information("Is InstanceContent zone!");
-                        this.hasLoading = false;
-                        return r;
-                    }
-
-                    var terriZone = this.terris.FirstOrDefault(x => x.RowId == this.toLoadingTerri);
-
-                    if (terriZone == null)
-                    {
-                        this._pluginLog.Information($"terriZone null!");
-                        this.hasLoading = false;
-                        return r;
-                    }
-
-                    if (terriZone.PlaceNameRegionIcon != terriRegion.PlaceNameRegionIcon)
-                    {
-                        this._pluginLog.Information($"Mismatch: {terriZone.RowId} {terriRegion.RowId}");
-                        this.hasLoading = false;
-                        return r;
-                    }
-
-                    var loading = this.loadings.FirstOrDefault(x => x.RowId == terriZone.LoadingImage);
-
-                    if (loading == null)
-                    {
-                        this._pluginLog.Information($"LoadingImage null!");
-                        this.hasLoading = false;
-                        return r;
-                    }
-
-                    if (!ShouldProcess())
-                    {
-                        this._pluginLog.Information("Process check failed!");
-                        this.hasLoading = false;
-                        return r;
-                    }
-
-                    SafeMemory.WriteString(pathPtr, $"ui/loadingimage/{loading.Name}_hr1.tex");
-                    this._pluginLog.Information($"Replacing icon for territory {terriRegion.RowId}");
-
-                    this.hasLoading = true;
-                }
-                catch (Exception ex)
-                {
-                    this._pluginLog.Error(ex, "Could not replace loading image.");
-                }
-            }
-
-            return r;
-        }
-
         private byte HandleTerriChangeDetour(IntPtr a1, uint a2, byte a3, byte a4, IntPtr a5)
         {
             this.toLoadingTerri = (int) a2;
@@ -241,26 +232,8 @@ namespace Dalamud.LoadingImage
             return this.handleTerriChangeHook.Original(a1, a2, a3, a4, a5);
         }
 
-        private bool ShouldProcess()
-        {
-            var t = (AtkUnitBase*) _gameGui.GetAddonByName("_LocationTitle", 1);
-            var ts = (AtkUnitBase*) _gameGui.GetAddonByName("_LocationTitleShort", 1);
-            
-            #if DEBUG
-            this._pluginLog.Log($"unitbase: {(long)t:X} visible: {t->IsVisible}");
-            this._pluginLog.Log($"unishort: {(long)ts:X} visible: {ts->IsVisible}");
-            this._pluginLog.Log($"t != null: {t != null}");
-            this._pluginLog.Log($"ts != null: {ts != null}");
-            this._pluginLog.Log($"t->IsVisible: {t->IsVisible}");
-            this._pluginLog.Log($"!ts->IsVisible: {!ts->IsVisible}");
-            #endif
-
-            return t != null && ts != null && t->IsVisible && !ts->IsVisible;
-        }
-
         public void Dispose()
         {
-            this.printIconHook.Dispose();
             this.handleTerriChangeHook.Dispose();
             _framework.Update -= FrameworkOnOnUpdateEvent;
 
