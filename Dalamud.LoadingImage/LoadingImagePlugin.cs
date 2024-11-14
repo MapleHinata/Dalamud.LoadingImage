@@ -8,7 +8,8 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ImGuiNET;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel;
+using Lumina.Excel.Sheets;
 
 namespace Dalamud.LoadingImage
 {
@@ -25,9 +26,9 @@ namespace Dalamud.LoadingImage
 
         private Hook<HandleTerriChangeDelegate> handleTerriChangeHook;
 
-        private TerritoryType[] terris;
-        private LoadingImage[] loadings;
-        private ContentFinderCondition[] cfcs;
+        private ExcelSheet<TerritoryType> terris;
+        private ExcelSheet<LoadingImage> loadings;
+        private ExcelSheet<ContentFinderCondition> cfcs;
 
         private bool hasLoading = false;
 
@@ -56,9 +57,9 @@ namespace Dalamud.LoadingImage
 
             this._addonLifecycle.RegisterListener(AddonEvent.PreDraw, "_LocationTitle", this.LocationTitleOnDraw);
 
-            this.terris = dataManager.GetExcelSheet<TerritoryType>().ToArray();
-            this.loadings = dataManager.GetExcelSheet<LoadingImage>().ToArray();
-            this.cfcs = dataManager.GetExcelSheet<ContentFinderCondition>().ToArray();
+            this.terris = dataManager.GetExcelSheet<TerritoryType>();
+            this.loadings = dataManager.GetExcelSheet<LoadingImage>();
+            this.cfcs = dataManager.GetExcelSheet<ContentFinderCondition>();
 
             this.handleTerriChangeHook = gameInteropProvider.HookFromAddress<HandleTerriChangeDelegate>(
                 sigScanner.ScanText("40 55 53 56 57 41 56 48 8D 6C 24 ?? 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 1F 4C 8B F1"),
@@ -80,25 +81,22 @@ namespace Dalamud.LoadingImage
 
             try
             {
-                var terriZone = this.terris.FirstOrDefault(x => x.RowId == this.toLoadingTerri);
-
-                if (this.cfcs.Any(x => x.ContentLinkType == 1 && x.TerritoryType.Row == this.toLoadingTerri))
+                if (this.cfcs.Any(x => x.ContentLinkType == 1 && x.TerritoryType.RowId == this.toLoadingTerri))
                 {
                     this._pluginLog.Information("Is InstanceContent zone!");
                     this.hasLoading = false;
                     return;
                 }
 
-                if (terriZone == null)
+                if (!this.terris.TryGetRow((uint)this.toLoadingTerri, out var terriZone))
                 {
                     this._pluginLog.Information($"terriZone null!");
                     this.hasLoading = false;
                     return;
                 }
 
-                var loadingImage = this.loadings.FirstOrDefault(x => x.RowId == terriZone.LoadingImage);
 
-                if (loadingImage == null)
+                if (!this.loadings.TryGetRow(terriZone.LoadingImage.RowId, out var loadingImage))
                 {
                     this._pluginLog.Information($"LoadingImage null!");
                     this.hasLoading = false;
