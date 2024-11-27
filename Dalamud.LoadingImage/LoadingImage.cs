@@ -1,27 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Lumina;
-using Lumina.Data;
-using Lumina.Excel;
-using Lumina.Excel.GeneratedSheets;
-using Lumina.Text;
+﻿using Lumina.Excel;
+using Lumina.Text.ReadOnly;
 
 namespace Dalamud.LoadingImage
 {
    [Sheet( "LoadingImage" )]
-    public class LoadingImage : ExcelRow
+   public readonly struct LoadingImage(ExcelPage page, uint offset, uint row) : IExcelRow<LoadingImage>
     {
-        
-        public SeString Name { get; set; }
+        public uint RowId => row;
 
-        public override void PopulateData( RowParser parser, GameData gameData, Language language )
-        {
-            base.PopulateData( parser, gameData, language );
+        public ReadOnlySeString Name => page.ReadString( offset, offset );
 
-            Name = parser.ReadColumn< SeString >( 0 );
-        }
+        public static LoadingImage Create(ExcelPage page, uint offset, uint row) => new(page, offset, row);
     }
 }
