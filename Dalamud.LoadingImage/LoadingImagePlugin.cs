@@ -165,8 +165,8 @@ namespace Dalamud.LoadingImage
             var unitBase = (AtkUnitBase*) _gameGui.GetAddonByName("_LocationTitle", 1);
             var unitBaseShort = (AtkUnitBase*) _gameGui.GetAddonByName("_LocationTitleShort", 1);
             
-            this._pluginLog.Info($"unitbase: {(long)unitBase:X} visible: {unitBase->IsVisible}");
-            this._pluginLog.Info($"unishort: {(long)unitBaseShort:X} visible: {unitBaseShort->IsVisible}");
+            this._pluginLog.Debug($"unitbase: {(long)unitBase:X} visible: {unitBase->IsVisible}");
+            this._pluginLog.Debug($"unishort: {(long)unitBaseShort:X} visible: {unitBaseShort->IsVisible}");
 
             if (unitBase != null && unitBaseShort != null)
             {
