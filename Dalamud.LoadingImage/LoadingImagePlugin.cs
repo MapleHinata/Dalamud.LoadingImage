@@ -7,7 +7,7 @@ using Dalamud.Hooking;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using Lumina.Excel;
 using Lumina.Excel.Sheets;
 
@@ -62,7 +62,7 @@ namespace Dalamud.LoadingImage
             this.cfcs = dataManager.GetExcelSheet<ContentFinderCondition>();
 
             this.handleTerriChangeHook = gameInteropProvider.HookFromAddress<HandleTerriChangeDelegate>(
-                sigScanner.ScanText("40 55 53 56 57 41 56 48 8D 6C 24 ?? 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 1F 4C 8B F1"),
+                sigScanner.ScanText("40 53 55 56 41 56 48 81 EC F8 00 00 00"),
                 this.HandleTerriChangeDetour);
 
             this.handleTerriChangeHook.Enable();
@@ -76,7 +76,7 @@ namespace Dalamud.LoadingImage
 
         private void LocationTitleOnDraw(AddonEvent type, AddonArgs args)
         {
-            var addon = (AtkUnitBase*)args.Addon;
+            var addon = (AtkUnitBase*)args.Addon.Address;
             var regionImageNode = (AtkImageNode*)addon->GetNodeById(3);
 
             try
@@ -162,8 +162,8 @@ namespace Dalamud.LoadingImage
             if (this.hasLoading != true)
                 return;
 
-            var unitBase = (AtkUnitBase*) _gameGui.GetAddonByName("_LocationTitle", 1);
-            var unitBaseShort = (AtkUnitBase*) _gameGui.GetAddonByName("_LocationTitleShort", 1);
+            var unitBase = (AtkUnitBase*)_gameGui.GetAddonByName("_LocationTitle", 1).Address;
+            var unitBaseShort = (AtkUnitBase*) _gameGui.GetAddonByName("_LocationTitleShort", 1).Address;
             
             this._pluginLog.Debug($"unitbase: {(long)unitBase:X} visible: {unitBase->IsVisible}");
             this._pluginLog.Debug($"unishort: {(long)unitBaseShort:X} visible: {unitBaseShort->IsVisible}");
