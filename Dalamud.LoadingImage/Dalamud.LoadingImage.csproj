@@ -1,30 +1,5 @@
-﻿<Project Sdk="Dalamud.NET.Sdk/13.0.0">
-  <PropertyGroup Label="Target">
-    <TargetFramework>net9.0-windows</TargetFramework>
-    <PlatformTarget>x64</PlatformTarget>
-    <LangVersion>latest</LangVersion>
-  </PropertyGroup>
-
+﻿<Project Sdk="Dalamud.NET.Sdk/14.0.1">
   <PropertyGroup>
-    <AssemblyVersion>1.0.0.16</AssemblyVersion>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
-    <OutputPath>bin\$(Configuration)\</OutputPath>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <AssemblyVersion>1.0.0.17</AssemblyVersion>
   </PropertyGroup>
-
-  <PropertyGroup Label="Documentation">
-    <DocumentationFile></DocumentationFile>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.333">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
 </Project>

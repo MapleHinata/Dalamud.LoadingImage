@@ -1,8 +1,9 @@
 {
-  "Author": "goat",
+  "Author": "goat, Maple",
   "Name": "Fancy Loading Screens",
   "Description": "This plugin shows the destination zone's concept art while loading.\nNOTE: ONLY LOOKS RIGHT ON 16:9 SCREENS! The concept art is not any bigger, and we can't expand/fix it. Sorry!",
   "Punchline": "Shows the destination zone's concept art while loading",
   "InternalName": "Dalamud.LoadingImage",
+  "RepoUrl": "https://github.com/MapleHinata/Dalamud.LoadingImage",
   "ApplicableVersion": "any",
 }
